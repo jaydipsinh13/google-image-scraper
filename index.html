@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Image Scraper</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Bitcount+Prop+Single:wght@100..900&display=swap");
+      * {
+        font-family: "Bitcount Prop Single", sans-serif !important;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-100 p-6">
+    <div class="max-w-4xl mx-auto bg-white rounded shadow p-6">
+      <h1 class="text-2xl font-bold mb-4">Google Image Scraper</h1>
+
+      <form id="scrapeForm" class="mb-6 flex gap-2">
+        <input
+          type="text"
+          id="texts"
+          placeholder="Enter comma separated search texts"
+          class="flex-grow border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          required
+        />
+        <button
+          type="submit"
+          class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+        >
+          Search
+        </button>
+      </form>
+
+      <table class="w-full text-left border-collapse border border-gray-300">
+        <thead>
+          <tr class="bg-gray-200">
+            <th class="border border-gray-300 px-4 py-2">Search Text</th>
+            <th class="border border-gray-300 px-4 py-2">Image Preview</th>
+            <th class="border border-gray-300 px-4 py-2">Image URL</th>
+            <th class="border border-gray-300 px-4 py-2">Copy</th>
+          </tr>
+        </thead>
+        <tbody id="resultsBody"></tbody>
+      </table>
+
+      <div class="flex gap-2 mt-4">
+        <button
+          id="downloadBtn"
+          class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50"
+          disabled
+        >
+          Download CSV
+        </button>
+
+        <button
+          id="downloadZipBtn"
+          class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 disabled:opacity-50"
+          disabled
+        >
+          Download ZIP
+        </button>
+      </div>
+    </div>
+
+    <script>
+      const form = document.getElementById("scrapeForm");
+      const resultsBody = document.getElementById("resultsBody");
+      const downloadBtn = document.getElementById("downloadBtn");
+      const downloadZipBtn = document.getElementById("downloadZipBtn");
+      let currentData = [];
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        resultsBody.innerHTML = "";
+        downloadBtn.disabled = true;
+        downloadZipBtn.disabled = true;
+        const textsInput = document.getElementById("texts").value;
+        const texts = textsInput
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean);
+        if (texts.length === 0) return alert("Enter at least one text.");
+
+        const response = await fetch("/scrape-images", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ texts }),
+        });
+
+        if (!response.ok) {
+          const err = await response.json();
+          alert("Error: " + (err.error || "Unknown error"));
+          return;
+        }
+
+        currentData = await response.json();
+        if (!currentData.length) {
+          alert("No results found.");
+          return;
+        }
+
+        currentData.forEach(({ dname, imageUrls }) => {
+          imageUrls.forEach((imageUrl) => {
+            const row = document.createElement("tr");
+            row.innerHTML = `
+            <td class="border border-gray-300 px-4 py-2 align-middle">${dname}</td>
+            <td class="border border-gray-300 px-4 py-2 align-middle">
+              <img src="${imageUrl}" alt="${dname}" class="w-32 h-auto object-contain rounded" />
+            </td>
+            <td class="border border-gray-300 px-4 py-2 break-all align-middle">${imageUrl}</td>
+            <td class="border border-gray-300 px-4 py-2 align-middle">
+              <button 
+                class="copy-btn bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded focus:outline-none"
+                title="Copy image URL"
+                onclick="navigator.clipboard.writeText('${imageUrl}').then(()=>{this.innerText='Copied!';setTimeout(()=>this.innerText='📋',1000);})"
+                type="button"
+              >📋</button>
+            </td>
+          `;
+            resultsBody.appendChild(row);
+          });
+        });
+
+        downloadBtn.disabled = false;
+        downloadZipBtn.disabled = false;
+      });
+
+      downloadBtn.addEventListener("click", () => {
+        if (!currentData.length) return;
+
+        const flatData = [];
+        currentData.forEach(({ dname, imageUrls }) => {
+          imageUrls.forEach((url) => flatData.push({ dname, imageUrl: url }));
+        });
+
+        const csvRows = [
+          ["dname", "imageUrl"],
+          ...flatData.map((row) => [row.dname, row.imageUrl]),
+        ];
+
+        const csvContent = csvRows
+          .map((e) => e.map((s) => `"${s.replace(/"/g, '""')}"`).join(","))
+          .join("\n");
+
+        const blob = new Blob([csvContent], {
+          type: "text/csv;charset=utf-8;",
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "images.csv";
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+
+      downloadZipBtn.addEventListener("click", async () => {
+        if (!currentData.length) return;
+
+        downloadZipBtn.disabled = true;
+        downloadZipBtn.innerText = "Zipping...";
+
+        const zip = new JSZip();
+
+        const fetchPromises = [];
+
+        currentData.forEach(({ dname, imageUrls }) => {
+          imageUrls.forEach((url, idx) => {
+            const safeName = dname.replace(/[^a-z0-9]/gi, "_").toLowerCase();
+            const extMatch = url.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg)/i);
+            const ext = extMatch ? extMatch[1] : "jpg";
+            const filename = `${safeName}_${idx + 1}.${ext}`;
+
+            fetchPromises.push(
+              fetch(url)
+                .then((res) => res.blob())
+                .then((blob) => {
+                  zip.file(filename, blob);
+                })
+                .catch(() => {})
+            );
+          });
+        });
+
+        await Promise.all(fetchPromises);
+
+        const content = await zip.generateAsync({ type: "blob" });
+        saveAs(content, "images.zip");
+
+        downloadZipBtn.innerText = "Download ZIP";
+        downloadZipBtn.disabled = false;
+      });
+    </script>
+  </body>
+</html>
