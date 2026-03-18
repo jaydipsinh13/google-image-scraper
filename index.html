@@ -3,128 +3,366 @@
   <head>
     <meta charset="UTF-8" />
     <title>Image Scraper</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <style>
-      @import url("https://fonts.googleapis.com/css2?family=Bitcount+Prop+Single:wght@100..900&display=swap");
+      @import url("https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap");
       * {
-        font-family: "Bitcount Prop Single", sans-serif !important;
+        font-family: "Outfit", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif !important;
       }
     </style>
   </head>
-  <body class="bg-gray-100 p-6">
-    <div class="max-w-4xl mx-auto bg-white rounded shadow p-6">
-      <h1 class="text-2xl font-bold mb-4">Google Image Scraper</h1>
-
-      <form id="scrapeForm" class="mb-6 flex gap-2">
-        <input
-          type="text"
-          id="texts"
-          placeholder="Enter comma separated search texts"
-          class="flex-grow border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          required
-        />
-        <button
-          type="submit"
-          class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+  <body class="min-h-screen bg-slate-50 text-slate-900 flex items-center justify-center p-4">
+    <div
+      class="w-full max-w-5xl bg-white border border-slate-200 rounded-2xl shadow-lg p-6 sm:p-8 space-y-6"
+    >
+      <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 class="text-2xl sm:text-3xl font-semibold tracking-tight flex items-center gap-2">
+            <span>Smart Image Scraper</span>
+          </h1>
+          <p class="mt-1 text-sm text-slate-500">
+            Enter one or more search terms and instantly fetch preview images and URLs.
+          </p>
+        </div>
+        <div
+          class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-500"
         >
-          Search
-        </button>
-      </form>
+          <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
+          <span id="statusText">Idle</span>
+        </div>
+      </header>
 
-      <table class="w-full text-left border-collapse border border-gray-300">
-        <thead>
-          <tr class="bg-gray-200">
-            <th class="border border-gray-300 px-4 py-2">Search Text</th>
-            <th class="border border-gray-300 px-4 py-2">Image Preview</th>
-            <th class="border border-gray-300 px-4 py-2">Image URL</th>
-            <th class="border border-gray-300 px-4 py-2">Copy</th>
-          </tr>
-        </thead>
-        <tbody id="resultsBody"></tbody>
-      </table>
+      <section
+        class="rounded-xl border border-slate-200 bg-slate-50 p-4 sm:p-5 space-y-3"
+      >
+        <form id="scrapeForm" class="space-y-3">
+          <label for="texts" class="block text-xs font-medium text-slate-400 uppercase tracking-wide"
+            >Search terms</label
+          >
+          <div class="flex flex-col sm:flex-row gap-3">
+            <div class="relative flex-1">
+              <textarea
+                id="texts"
+                rows="2"
+                placeholder="Type search terms separated by commas. Example: red car, golden retriever, mountain at sunset"
+                class="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2.5 pr-10 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                required
+              ></textarea>
+            </div>
+            <div class="flex flex-row sm:flex-col gap-2 sm:w-40">
+              <button
+                type="submit"
+                id="searchBtn"
+                class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-200 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+              >
+                <span id="searchBtnSpinner" class="hidden h-4 w-4 animate-spin rounded-full border-2 border-slate-200/70 border-t-transparent"></span>
+                <span id="searchBtnText">Search</span>
+              </button>
+              <button
+                type="button"
+                id="clearBtn"
+                class="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-200"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+        </form>
+      </section>
 
-      <div class="flex gap-2 mt-4">
-        <button
-          id="downloadBtn"
-          class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50"
-          disabled
+      <section class="space-y-3">
+        <div class="flex items-center justify-between gap-3">
+          <h2 class="text-sm font-medium text-slate-700 uppercase tracking-[0.12em]">
+            Results
+          </h2>
+          <div class="flex items-center gap-2 text-xs text-slate-500">
+            <span
+              class="inline-flex h-1.5 w-6 overflow-hidden rounded-full bg-slate-200 ring-1 ring-slate-200"
+            >
+              <span
+                id="resultsPulse"
+                class="block h-full w-0 bg-blue-500 transition-all duration-300"
+              ></span>
+            </span>
+            <span id="resultsCountText">No results yet</span>
+          </div>
+        </div>
+
+        <div
+          id="resultsContainer"
+          class="relative overflow-hidden rounded-xl border border-slate-200 bg-white"
         >
-          Download CSV
-        </button>
+          <div
+            id="loadingOverlay"
+            class="pointer-events-none absolute inset-0 z-10 hidden items-center justify-center bg-white/70 backdrop-blur-sm"
+          >
+            <div class="flex flex-col items-center gap-2 text-sm text-slate-700">
+              <div
+                class="h-9 w-9 animate-spin rounded-full border-2 border-blue-500/70 border-t-transparent"
+              ></div>
+              <span>Fetching images…</span>
+            </div>
+          </div>
 
-        <button
-          id="downloadZipBtn"
-          class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 disabled:opacity-50"
-          disabled
-        >
-          Download ZIP
-        </button>
-      </div>
+          <div id="emptyState" class="flex flex-col items-center gap-3 px-6 py-10 text-center">
+            <div
+              class="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-500"
+            >
+              <span class="text-lg">🖼️</span>
+            </div>
+            <div class="space-y-1">
+              <p class="text-sm font-medium text-slate-800">No results yet</p>
+              <p class="text-xs text-slate-500">
+                Run a search to see preview images and copyable URLs here.
+              </p>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="min-w-full text-left text-sm">
+              <thead class="bg-white border-b border-slate-200 text-xs uppercase text-slate-500">
+                <tr>
+                  <th class="px-4 py-3 font-medium">Search term</th>
+                  <th class="px-4 py-3 font-medium">Image</th>
+                  <th class="px-4 py-3 font-medium">URL</th>
+                  <th class="px-4 py-3 font-medium text-center">Copy</th>
+                </tr>
+              </thead>
+              <tbody id="resultsBody" class="divide-y divide-slate-200"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div class="flex gap-2">
+          <button
+            id="downloadBtn"
+            class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+            disabled
+          >
+            <span>Download CSV</span>
+          </button>
+
+          <button
+            id="downloadZipBtn"
+            class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-200 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+            disabled
+          >
+            <span id="zipBtnText">Download ZIP</span>
+          </button>
+        </div>
+        <p class="text-xs text-slate-500">
+          CSV includes search term and image URL. ZIP saves all images with clean file names.
+        </p>
+      </section>
+
+      <footer class="pt-2 border-t border-slate-200">
+        <p class="text-center text-xs text-slate-500">
+          Made by <span class="font-medium text-slate-700">Jaydipsinh Solanki</span>
+        </p>
+      </footer>
     </div>
 
     <script>
       const form = document.getElementById("scrapeForm");
       const resultsBody = document.getElementById("resultsBody");
+      const resultsContainer = document.getElementById("resultsContainer");
+      const emptyState = document.getElementById("emptyState");
+      const loadingOverlay = document.getElementById("loadingOverlay");
       const downloadBtn = document.getElementById("downloadBtn");
       const downloadZipBtn = document.getElementById("downloadZipBtn");
+      const searchBtn = document.getElementById("searchBtn");
+      const searchBtnSpinner = document.getElementById("searchBtnSpinner");
+      const searchBtnText = document.getElementById("searchBtnText");
+      const clearBtn = document.getElementById("clearBtn");
+      const statusText = document.getElementById("statusText");
+      const resultsCountText = document.getElementById("resultsCountText");
+      const resultsPulse = document.getElementById("resultsPulse");
+      const zipBtnText = document.getElementById("zipBtnText");
       let currentData = [];
+
+      function setLoading(isLoading) {
+        if (isLoading) {
+          loadingOverlay.classList.remove("hidden");
+          searchBtn.disabled = true;
+          downloadBtn.disabled = true;
+          downloadZipBtn.disabled = true;
+          searchBtnSpinner.classList.remove("hidden");
+          searchBtnText.textContent = "Searching…";
+          statusText.textContent = "Searching images…";
+        } else {
+          loadingOverlay.classList.add("hidden");
+          searchBtn.disabled = false;
+          searchBtnSpinner.classList.add("hidden");
+          searchBtnText.textContent = "Search";
+          statusText.textContent = currentData.length ? "Results ready" : "Idle";
+        }
+      }
+
+      function updateResultsCount() {
+        const totalRows = currentData.reduce((acc, item) => acc + item.imageUrls.length, 0);
+        if (!totalRows) {
+          resultsCountText.textContent = "No results yet";
+          resultsPulse.style.width = "0";
+        } else {
+          resultsCountText.textContent = `${totalRows} image${
+            totalRows === 1 ? "" : "s"
+          } found for ${currentData.length} term${currentData.length === 1 ? "" : "s"}`;
+          resultsPulse.style.width = "100%";
+        }
+      }
+
+      function showToast(message, type = "info") {
+        const existing = document.getElementById("toast");
+        if (existing) existing.remove();
+
+        const toast = document.createElement("div");
+        toast.id = "toast";
+        toast.className =
+          "fixed bottom-4 right-4 z-50 rounded-lg border px-3 py-2 text-xs shadow-lg bg-white";
+
+        const color =
+          type === "error"
+            ? "border-red-500/60 text-red-700"
+            : type === "success"
+            ? "border-emerald-500/60 text-emerald-700"
+            : "border-slate-200 text-slate-700";
+
+        toast.className += " " + color;
+        toast.textContent = message;
+
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+      }
 
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
-        resultsBody.innerHTML = "";
-        downloadBtn.disabled = true;
-        downloadZipBtn.disabled = true;
         const textsInput = document.getElementById("texts").value;
         const texts = textsInput
           .split(",")
           .map((t) => t.trim())
           .filter(Boolean);
-        if (texts.length === 0) return alert("Enter at least one text.");
 
-        const response = await fetch("/scrape-images", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ texts }),
-        });
-
-        if (!response.ok) {
-          const err = await response.json();
-          alert("Error: " + (err.error || "Unknown error"));
+        if (texts.length === 0) {
+          showToast("Enter at least one search term.", "error");
           return;
         }
 
-        currentData = await response.json();
-        if (!currentData.length) {
-          alert("No results found.");
-          return;
-        }
+        resultsBody.innerHTML = "";
+        emptyState.classList.add("hidden");
+        setLoading(true);
 
-        currentData.forEach(({ dname, imageUrls }) => {
-          imageUrls.forEach((imageUrl) => {
-            const row = document.createElement("tr");
-            row.innerHTML = `
-            <td class="border border-gray-300 px-4 py-2 align-middle">${dname}</td>
-            <td class="border border-gray-300 px-4 py-2 align-middle">
-              <img src="${imageUrl}" alt="${dname}" class="w-32 h-auto object-contain rounded" />
-            </td>
-            <td class="border border-gray-300 px-4 py-2 break-all align-middle">${imageUrl}</td>
-            <td class="border border-gray-300 px-4 py-2 align-middle">
-              <button 
-                class="copy-btn bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded focus:outline-none"
-                title="Copy image URL"
-                onclick="navigator.clipboard.writeText('${imageUrl}').then(()=>{this.innerText='Copied!';setTimeout(()=>this.innerText='📋',1000);})"
-                type="button"
-              >📋</button>
-            </td>
-          `;
-            resultsBody.appendChild(row);
+        try {
+          const response = await fetch("/scrape-images", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ texts }),
           });
-        });
 
-        downloadBtn.disabled = false;
-        downloadZipBtn.disabled = false;
+          if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.error || "Unexpected error while scraping.");
+          }
+
+          currentData = await response.json();
+
+          if (!currentData.length || currentData.every((r) => !r.imageUrls.length)) {
+            emptyState.classList.remove("hidden");
+            resultsBody.innerHTML = "";
+            downloadBtn.disabled = true;
+            downloadZipBtn.disabled = true;
+            showToast("No images found for the given terms.", "info");
+            updateResultsCount();
+            return;
+          }
+
+          currentData.forEach(({ dname, imageUrls }) => {
+            imageUrls.forEach((imageUrl) => {
+              const row = document.createElement("tr");
+              row.className = "bg-white hover:bg-slate-50 transition-colors duration-150";
+              row.innerHTML = `
+                <td class="px-4 py-3 align-middle text-xs sm:text-sm text-slate-900 max-w-[10rem] sm:max-w-[12rem]">
+                  <span class="line-clamp-2 break-words">${dname}</span>
+                </td>
+                <td class="px-4 py-3 align-middle">
+                  <div class="h-20 w-28 overflow-hidden rounded-lg border border-slate-200 bg-white">
+                    <img
+                      src="${imageUrl}"
+                      alt="${dname}"
+                      class="h-full w-full object-cover transition-transform duration-200 hover:scale-105"
+                      loading="lazy"
+                    />
+                  </div>
+                </td>
+                <td class="px-4 py-3 align-middle text-xs text-slate-700">
+                  <div class="max-w-xs sm:max-w-md break-all">
+                    ${imageUrl}
+                  </div>
+                </td>
+                <td class="px-4 py-3 align-middle text-center">
+                  <button
+                    class="copy-btn inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-200"
+                    type="button"
+                    data-url="${imageUrl}"
+                  >
+                    Copy
+                  </button>
+                </td>
+              `;
+              resultsBody.appendChild(row);
+            });
+          });
+
+          downloadBtn.disabled = false;
+          downloadZipBtn.disabled = false;
+          emptyState.classList.add("hidden");
+          updateResultsCount();
+          showToast("Images fetched successfully.", "success");
+        } catch (err) {
+          console.error(err);
+          emptyState.classList.remove("hidden");
+          resultsBody.innerHTML = "";
+          downloadBtn.disabled = true;
+          downloadZipBtn.disabled = true;
+          showToast(err.message || "Failed to fetch images.", "error");
+        } finally {
+          setLoading(false);
+        }
+      });
+
+      clearBtn.addEventListener("click", () => {
+        document.getElementById("texts").value = "";
+        currentData = [];
+        resultsBody.innerHTML = "";
+        emptyState.classList.remove("hidden");
+        downloadBtn.disabled = true;
+        downloadZipBtn.disabled = true;
+        updateResultsCount();
+        statusText.textContent = "Idle";
+      });
+
+      document.addEventListener("click", (e) => {
+        if (e.target.matches(".copy-btn")) {
+          const url = e.target.getAttribute("data-url");
+          if (!url) return;
+          navigator.clipboard
+            .writeText(url)
+            .then(() => {
+              e.target.textContent = "Copied";
+              showToast("Image URL copied to clipboard.", "success");
+              setTimeout(() => {
+                e.target.textContent = "Copy";
+              }, 1200);
+            })
+            .catch(() => {
+              showToast("Could not copy to clipboard.", "error");
+            });
+        }
       });
 
       downloadBtn.addEventListener("click", () => {
@@ -157,9 +395,8 @@
 
       downloadZipBtn.addEventListener("click", async () => {
         if (!currentData.length) return;
-
         downloadZipBtn.disabled = true;
-        downloadZipBtn.innerText = "Zipping...";
+        zipBtnText.textContent = "Zipping…";
 
         const zip = new JSZip();
 
@@ -188,7 +425,7 @@
         const content = await zip.generateAsync({ type: "blob" });
         saveAs(content, "images.zip");
 
-        downloadZipBtn.innerText = "Download ZIP";
+        zipBtnText.textContent = "Download ZIP";
         downloadZipBtn.disabled = false;
       });
     </script>

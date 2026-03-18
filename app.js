@@ -24,33 +24,67 @@ app.post('/scrape-images', async (req, res) => {
 
     const results = await Promise.all(
       texts.map(async (text) => {
-        const url = `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(text)}`;
-        const { data: html } = await axios.get(url, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-          },
-        });
+        // Use Bing Images instead of Google – more scraper‑friendly
+        const url = `https://www.bing.com/images/search?q=${encodeURIComponent(
+          `${text} food item by zomato`
+        )}&form=HDRSC2`;
+
+        let html;
+        try {
+          const { data } = await axios.get(url, {
+            headers: {
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+              Accept:
+                'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+              'Accept-Language': 'en-US,en;q=0.9',
+            },
+          });
+          html = data;
+        } catch (err) {
+          // On any network / blocking error, just return empty for this term
+          return { dname: text, imageUrls: [] };
+        }
 
         const $ = cheerio.load(html);
-
         const imageUrls = [];
-        $('img').each((i, el) => {
+
+        // 1) Prefer main image result thumbnails
+        //    They usually live on elements like: <img class="mimg" ...>
+        $('img.mimg').each((i, el) => {
+          if (imageUrls.length >= 1) return false;
+
           let src = $(el).attr('src') || $(el).attr('data-src') || '';
           if (
             src &&
             src.startsWith('http') &&
             !src.startsWith('data:') &&
-            imageUrls.length < 1
+            !src.includes('bing.net/th?id=OIP.') // skip some low‑quality thumbs if needed
           ) {
             if (src.startsWith('http://')) src = src.replace('http://', 'https://');
-        
-            src = src.replace(/=w\d+-h\d+/, '=w1000-h1000');
-            src = src.replace(/=s\d+/, '');
-        
             imageUrls.push(src);
           }
         });
-        
+
+        // 2) Fallback: any reasonable <img> on the page
+        if (imageUrls.length === 0) {
+          $('img').each((i, el) => {
+            if (imageUrls.length >= 1) return false;
+
+            let src = $(el).attr('src') || $(el).attr('data-src') || '';
+            if (
+              src &&
+              src.startsWith('http') &&
+              !src.startsWith('data:') &&
+              !src.includes('bing.com/th?id=OIP.') &&
+              !src.includes('rmsrc') &&
+              !src.includes('azureedge.net') // branding / layout images
+            ) {
+              if (src.startsWith('http://')) src = src.replace('http://', 'https://');
+              imageUrls.push(src);
+            }
+          });
+        }
 
         return { dname: text, imageUrls };
       })
